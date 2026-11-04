@@ -1,0 +1,67 @@
+# Weekly merge of NousResearch/hermes-agent main into this fork.
+# Opens upstream-sync-YYYYMMDD so apps/mobile can be fixed against desktop
+# before it lands on the fork's main. Mobile CI runs on that pull request.
+name: Upstream sync
+
+on:
+  schedule:
+    - cron: '0 16 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+      - name: Merge upstream/main
+        id: merge
+        run: |
+          set -euo pipefail
+          git config user.name "hermes-upstream-sync"
+          git config user.email "hermes-upstream-sync@users.noreply.github.com"
+          git remote add upstream https://github.com/NousResearch/hermes-agent.git
+          git fetch upstream main
+          date="$(date -u +%Y%m%d)"
+          branch="upstream-sync-${date}"
+          git checkout -B "$branch"
+          git merge upstream/main --no-edit
+          git push --force-with-lease origin "$branch"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+      - name: Open pull request
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          script: |
+            const branch = '${{ steps.merge.outputs.branch }}';
+            const title = `chore: upstream sync ${branch.replace('upstream-sync-', '')}`;
+            const body = [
+              'Weekly merge of `NousResearch/hermes-agent` `main` into this fork.',
+              '',
+              'After it is green, install a debug APK (`apps/mobile/README.md`) and sign in to the remote gateway once.',
+              '',
+              'Manual equivalent: `git fetch upstream && git merge upstream/main`.',
+            ].join('\n');
+            const existing = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              head: `${context.repo.owner}:${branch}`,
+              state: 'open',
+            });
+            if (existing.data.length) {
+              core.info(`PR already open: ${existing.data[0].html_url}`);
+              return;
+            }
+            const pr = await github.rest.pulls.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              head: branch,
+              base: 'main',
+              body,
+            });
+            core.info(`Opened ${pr.data.html_url}`);

@@ -2,14 +2,13 @@
  * WebSocket handshake headers.
  *
  * The renderer dials `new WebSocket(url)`. A browser socket cannot set
- * Cloudflare Access (or any other) headers. When the saved connection has
- * extra headers and we are inside the Capacitor shell, this replaces
+ * Cloudflare Access (or any other) headers, and on Android Capacitor the
+ * WebView upgrade also sends `Origin: http://localhost`, which remote
+ * gateways reject. Inside the Capacitor shell this always replaces
  * `window.WebSocket` with a shim that opens the socket through OkHttp
- * (`HermesSocket` plugin) so those headers ride the upgrade. With no extra
- * headers the real WebView socket is used, which is what cleartext `ws://`
- * on Tailscale needs.
+ * (`HermesSocket` plugin) so the upgrade has no forged Origin and any
+ * saved extra headers can ride along — even when the header map is empty.
  */
-
 import { registerPlugin, type PluginListenerHandle } from '@capacitor/core'
 import { Capacitor } from '@capacitor/core'
 
@@ -105,7 +104,9 @@ export function installWebSocketHeaders(): void {
   function HermesWebSocket(this: unknown, url: string | URL, protocols?: string | string[]): WebSocket {
     const headers = filterExtraHeaders(currentTarget()?.extraHeaders)
     const target = String(url)
-    if (!Capacitor.isNativePlatform() || Object.keys(headers).length === 0) {
+    // Always use OkHttp on native — even with an empty header map — so the
+    // upgrade never carries WebView's `Origin: http://localhost`.
+    if (!Capacitor.isNativePlatform()) {
       return new Original(target, protocols)
     }
     return new NativeHeaderSocket(target, headers) as unknown as WebSocket

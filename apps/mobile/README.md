@@ -25,7 +25,7 @@ Application id: `com.winson.hermes.mobile`.
 
 ## Connect
 
-On first launch the form asks for a connection **name**, **gateway URL** (`http://host:port` or `https://…`; a pasted `host:port` is treated as `http`), **username** and **password**, an optional **session token** (token-mode gateways only), and optional **extra request headers** (`Name: value`, one per line). Headers such as `Cookie`, `Authorization`, `Host`, and `X-Hermes-Session-Token` are ignored. The password is not stored; the session cookies are. Extra headers are stored in app preferences and sent on REST. When any extra header is set, the WebSocket upgrade goes through OkHttp so those headers can be attached; otherwise the WebView socket is used.
+On first launch the form asks for a connection **name**, **gateway URL** (`http://host:port` or `https://…`; a pasted `host:port` is treated as `http`), **username** and **password**, an optional **session token** (token-mode gateways only), and optional **extra request headers** (`Name: value`, one per line). Headers such as `Cookie`, `Authorization`, `Host`, and `X-Hermes-Session-Token` are ignored. The password is not stored; the session cookies are. Extra headers are stored in app preferences and sent on REST. On device the WebSocket upgrade always goes through OkHttp (`HermesSocket`) so the handshake never carries WebView's `Origin: http://localhost` (which remote gateways reject); saved extra headers ride the same upgrade when set.
 
 Example (type this yourself; it is not baked into the app): name `nx-node-01`, URL `http://100.64.0.13:9119`, then the gateway username and password. The phone has to be on that tailnet.
 

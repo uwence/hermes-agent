@@ -6,6 +6,8 @@ import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
+import { mobileComposerMetricsAlias } from './src/mobile/vite-composer-metrics-alias'
+
 const requireFromApp = createRequire(fileURLToPath(new URL('./package.json', import.meta.url)))
 
 // Resolve a path relative to this config file.
@@ -15,7 +17,7 @@ const r = (p: string) => fileURLToPath(new URL(p, import.meta.url))
 // Point those at the live workspace source so the phone runs that UI unmodified.
 export default defineConfig(({ command }) => ({
   base: './',
-  plugins: [react(), tailwindcss()],
+  plugins: [mobileComposerMetricsAlias(), react(), tailwindcss()],
   css: {
     postcss: { plugins: [] },
   },

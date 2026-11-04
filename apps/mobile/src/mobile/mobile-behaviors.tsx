@@ -10,6 +10,7 @@ import {
   FILE_BROWSER_PANE_ID,
   $panesFlipped,
 } from '@/store/layout'
+import { $interfaceMode, setInterfaceMode } from '@/store/interface-mode'
 
 /**
  * MobileBehaviors — the touch adaptations layered over the reused desktop UI.
@@ -23,6 +24,9 @@ import {
  *     that land inside `[data-narrow-overlay]` so session rows can activate.
  *  3. One Android back handler: keyboard → dismiss, else drawer → closed, else
  *     default (history back / exit).
+ *  4. Prefer Simple interface mode so advanced titlebar chrome (flip panes, HUD,
+ *     right-sidebar toggle) does not crowd a ~6" portrait titlebar. Settings
+ *     stays reachable; Layout is hidden via theme-fallback.css.
  *
  * Overlay screens (Settings/Skills/Profiles) get their responsive master-detail
  * from upstream now (overlays/overlay-split-layout.tsx), so nothing here.
@@ -60,6 +64,12 @@ export function MobileBehaviors() {
   useEffect(() => {
     // Standard orientation: sessions LEFT, files RIGHT.
     $panesFlipped.set(false)
+
+    // Chat-first chrome on a phone — hide flip/HUD/right-sidebar (advanced
+    // tier). Settings stays; Layout is CSS-hidden in theme-fallback.css.
+    if ($interfaceMode.get() !== 'simple') {
+      setInterfaceMode('simple')
+    }
 
     // Track keyboard visibility so the Android back button can dismiss it first
     // (see the backButton handler). The WebView resizes above the keyboard on its

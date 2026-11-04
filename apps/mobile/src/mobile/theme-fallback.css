@@ -66,14 +66,33 @@ body {
   top: calc(var(--titlebar-controls-top, 0px) + env(safe-area-inset-top)) !important;
 }
 
-/* Slightly larger tap targets for touch — the desktop titlebar buttons are tuned
-   for a mouse. Bumped a little (not a lot) so they're easier to hit. */
+/*
+ * Phone chrome — aim for ≥44px hit targets where practical. Desktop's browser
+ * host already promotes composer controls to 2.75rem under coarse pointer when
+ * data-hermes-desktop-host=browser (see styles.css); we match the titlebar and
+ * statusbar so they do not stay mouse-sized on a ~6" portrait screen.
+ */
 :root {
-  --titlebar-control-size: 1.6rem;
-  --titlebar-control-height: 1.7rem;
+  --titlebar-control-size: 2.75rem;
+  --titlebar-control-height: 2.75rem;
+  --titlebar-icon-size: 1.25rem;
+  /* Fallback if JS titlebar height lags a frame behind mount. */
+  --titlebar-height: 44px;
+}
+[data-titlebar-cluster] button,
+[data-titlebar-cluster] a {
+  min-width: 2.75rem !important;
+  min-height: 2.75rem !important;
 }
 [data-titlebar-cluster] .codicon {
-  font-size: 1rem !important;
+  font-size: 1.25rem !important;
+}
+
+/* Layout editor is desktop tiling chrome — hide it so Settings + sidebar
+   toggle stay the reachable titlebar tools. (className 'group/tool' is unique
+   to the Layout tool in titlebar-controls.tsx.) */
+[data-titlebar-cluster] .group\/tool {
+  display: none !important;
 }
 
 /* While a sidebar drawer is open, hide the titlebar — it's position:fixed at a
@@ -108,14 +127,13 @@ body {
   display: none !important;
 }
 
-/* Slightly taller bottom bar with larger text/icons so the items are easier to
-   tap (the desktop bar is h-5 / 0.6875rem — too small for touch). Bumped a
-   little, not a lot. */
+/* Bottom status bar: tall enough to tap, scrolls instead of clipping. */
 [data-statusbar] {
-  height: 1.75rem !important;
-  /* Show every control; scroll the bar horizontally rather than cram or clip. */
+  height: 2.75rem !important;
+  min-height: 2.75rem !important;
   justify-content: flex-start !important;
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
 }
 [data-statusbar]::-webkit-scrollbar {
@@ -124,14 +142,16 @@ body {
 [data-statusbar] > * {
   overflow: visible !important;
   flex: 0 0 auto;
+  align-items: center;
 }
 [data-statusbar] [data-statusbar-id] {
-  font-size: 0.8125rem !important;
-  padding-left: 0.5rem !important;
-  padding-right: 0.5rem !important;
+  font-size: 0.875rem !important;
+  min-height: 2.75rem !important;
+  padding-left: 0.625rem !important;
+  padding-right: 0.625rem !important;
 }
 [data-statusbar] [data-statusbar-id] .codicon {
-  font-size: 0.95rem !important;
+  font-size: 1.1rem !important;
 }
 
 /* Boot-failure recovery: the local-install actions (repair the installer, switch
@@ -192,4 +212,56 @@ body {
     padding-left: calc(env(safe-area-inset-left) + 0.5rem) !important;
     padding-right: calc(env(safe-area-inset-right) + 0.5rem) !important;
   }
+}
+
+
+/*
+ * Phone layout pass — transcript, tabs, composer affordances.
+ * Composer 44px send/mic/+ come from Desktop's coarse-pointer + browser-host
+ * rules once install-bridge sets data-hermes-desktop-host=browser. The stacked
+ * labelled model pill is the Vite-aliased use-composer-metrics adapter.
+ */
+
+/* Session / pane tabs — readable, thumb-reachable. */
+[data-titlebar] [role='tab'],
+[data-contrib-shell] [role='tab'] {
+  min-height: 2.5rem;
+  padding-inline: 0.75rem;
+  font-size: 0.9375rem;
+}
+
+/* Chat transcript readability on ~6" portrait. */
+[data-slot='aui_assistant-message-content'],
+[data-slot='aui_user-message-content'] {
+  font-size: max(1rem, var(--conversation-text-font-size, 1rem));
+  line-height: 1.55;
+}
+
+/* Reinforce Desktop's touch control tokens even before/without the coarse
+   media query matching in some WebViews. */
+:root {
+  --composer-control-size: 2.75rem;
+  --composer-control-primary-size: 2.75rem;
+  --composer-voice-menu-size: 2.75rem;
+  --composer-control-gap: 0.375rem;
+}
+
+/* Icon controls in the composer dock (+ / mic / send / queue). */
+[data-slot='composer-root'] button[data-size='icon'],
+[data-slot='composer-surface'] button[data-size='icon'] {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+}
+
+/* Keep the labelled model pill from being squeezed off-screen. */
+[data-tour='model-pill'] {
+  min-height: 2.75rem;
+  max-width: min(70vw, 16rem);
+}
+
+/* Composer never scrolls horizontally off a portrait viewport. */
+[data-slot='composer-root'],
+[data-slot='composer-surface'] {
+  max-width: 100%;
+  overflow-x: clip;
 }

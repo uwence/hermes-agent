@@ -54,7 +54,9 @@ export function createMobileDesktopBridge(): Window['hermesDesktop'] {
       running: false,
       timestamp: Date.now(),
     }),
-    getRemoteDisplayReason: async () => 'This phone is a remote client of your Hermes gateway',
+    // Suppress the persistent top-center toast on a phone — it covers the
+    // titlebar/tabs. The connect screen already names this a remote client.
+    getRemoteDisplayReason: async () => null,
     api: <T>(request: HermesApiRequest) => api<T>(request),
     getConnection: (profile?: null | string) => getConnection(profile),
     getConnectionFor: async (payload: { connectionId?: null | string; profile?: null | string }) =>

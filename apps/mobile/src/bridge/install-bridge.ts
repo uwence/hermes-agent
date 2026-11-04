@@ -16,6 +16,9 @@ let installed = false
 export function installBridge(): void {
   if (installed) return
   installed = true
+  // Opt into Desktop's browser-host touch layout (44px controls, narrow-overlay
+  // chrome, keep-focus-on-press, etc.). Same marker the webapp bridge writes.
+  document.documentElement.dataset.hermesDesktopHost = 'browser'
   window.hermesDesktop = createMobileDesktopBridge()
   installWebSocketHeaders()
 }

@@ -7,14 +7,16 @@ import { useEffect, useRef, useState } from 'react'
 import DesktopController from '@/app'
 import { $desktopBoot } from '@/store/boot'
 
-import type { ProbeResult } from '~bridge/auth'
+import { probeGateway, type ProbeResult } from '~bridge/auth'
 import { $reauthNonce, currentTarget, loadTarget, setTarget, type GatewayTarget } from '~bridge/state'
 
+import { BOOT_RETRY_STORAGE_KEY, decideBootRetry } from '~mobile/boot-retry'
 import { ConnectScreen } from '~mobile/connect/ConnectScreen'
 import { LoginScreen } from '~mobile/connect/LoginScreen'
 import { TokenScreen } from '~mobile/connect/TokenScreen'
 import { MobileBehaviors } from '~mobile/mobile-behaviors'
 import { initNativeChrome } from '~mobile/native-init'
+import { probeFromSavedTarget, viewAfterLiveProbe, viewForReauth } from '~mobile/session-restore'
 
 type View = 'loading' | 'connect' | 'login' | 'token' | 'connected'
 
@@ -24,19 +26,41 @@ export function MobileRoot() {
   const reauthNonce = useStore($reauthNonce)
 
   // Boot: configure native chrome (status bar), then restore a saved gateway
-  // target, else show the connect screen.
+  // target, else show the connect screen. The saved target is enough to route
+  // a later 401 — do not wait on a live probe, which fails while the radio wakes.
   useEffect(() => {
     void initNativeChrome()
+    let cancelled = false
     void (async () => {
-      const t = await loadTarget()
-      setView(t ? 'connected' : 'connect')
+      const saved = await loadTarget()
+      if (cancelled) return
+      if (!saved) {
+        setView('connect')
+        return
+      }
+      setProbe(probeFromSavedTarget(saved))
+      setView('connected')
+      const live = await probeGateway(saved.baseUrl, saved.extraHeaders)
+      if (cancelled || !live.reachable) return
+      setProbe(live)
+      const next = viewAfterLiveProbe(saved, live)
+      if (next !== 'connected') setView(next)
     })()
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   // A 401 demanding re-login bounces us back to the right entry form for the
   // gateway's auth mode (token gateways re-collect the token, not a password).
+  // Fall back to the saved target when this launch never ran the connect form.
   useEffect(() => {
-    if (reauthNonce > 0 && probe) setView(probe.authMode === 'token' ? 'token' : 'login')
+    if (reauthNonce <= 0) return
+    const saved = currentTarget()
+    const known = probe ?? (saved ? probeFromSavedTarget(saved) : null)
+    if (!known) return
+    if (!probe) setProbe(known)
+    setView(viewForReauth(known))
   }, [reauthNonce, probe])
 
   async function onConnected(target: GatewayTarget, p: ProbeResult) {
@@ -116,8 +140,9 @@ export function MobileRoot() {
  * second later, with the radio warm, connects fine. Rather than greet the user
  * with the failure screen, quietly reload-retry up to twice behind a
  * "Reconnecting…" cover; only after that does the manual BootFailureOverlay take
- * over. The counter lives in sessionStorage so it survives the reload, and is
- * cleared once the gateway connects.
+ * over. The counter lives in sessionStorage so it survives the reload. It is
+ * cleared when desktop boot reaches `renderer.ready`, not while a reload is
+ * still in the starting state (`running` with no error).
  */
 function BootAutoRetry() {
   const boot = useStore($desktopBoot)
@@ -125,27 +150,30 @@ function BootAutoRetry() {
   const scheduled = useRef(false)
 
   useEffect(() => {
-    const KEY = 'hermes-boot-retries'
-    const MAX = 2
+    const stored = Number(window.sessionStorage.getItem(BOOT_RETRY_STORAGE_KEY) || '0')
+    const tries = Number.isFinite(stored) ? stored : 0
+    const decision = decideBootRetry(
+      { error: boot.error, phase: boot.phase, running: boot.running },
+      tries,
+      scheduled.current,
+    )
 
-    if (boot.running && !boot.error) {
-      window.sessionStorage.removeItem(KEY)
+    if (decision === 'clear') {
+      window.sessionStorage.removeItem(BOOT_RETRY_STORAGE_KEY)
       return
     }
 
-    if (boot.error && !boot.running && !scheduled.current) {
-      const tries = Number(window.sessionStorage.getItem(KEY) || '0')
-      if (tries >= MAX) return // give up — let BootFailureOverlay handle it
-      scheduled.current = true
-      window.sessionStorage.setItem(KEY, String(tries + 1))
-      setRetrying(true)
-      const timer = window.setTimeout(() => {
-        void window.hermesDesktop?.resetBootstrap?.()
-        window.location.reload()
-      }, 1100)
-      return () => window.clearTimeout(timer)
-    }
-  }, [boot.running, boot.error])
+    if (decision !== 'reload') return
+
+    scheduled.current = true
+    window.sessionStorage.setItem(BOOT_RETRY_STORAGE_KEY, String(tries + 1))
+    setRetrying(true)
+    const timer = window.setTimeout(() => {
+      void window.hermesDesktop?.resetBootstrap?.()
+      window.location.reload()
+    }, 1100)
+    return () => window.clearTimeout(timer)
+  }, [boot.error, boot.phase, boot.running])
 
   if (!retrying) return null
   return (
